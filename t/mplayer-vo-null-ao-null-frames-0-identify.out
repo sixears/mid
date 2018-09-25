@@ -1,0 +1,70 @@
+MPlayer 1.3.0-6.4.0 (C) 2000-2016 MPlayer Team
+
+Playing /local/martyn/TV/The 100 - 04x13 - Praimfaya.mp4.
+libavformat version 57.83.100 (external)
+libavformat file format detected.
+[mov,mp4,m4a,3gp,3g2,mj2 @ 0x7f136cc24ae0]Protocol name not provided, cannot determine if input is local or a network protocol, buffers and access patterns cannot be configured optimally without knowing the protocol
+ID_VIDEO_ID=0
+[lavf] stream 0: video (h264), -vid 0
+ID_AUDIO_ID=0
+ID_AID_0_LANG=eng
+[lavf] stream 1: audio (aac), -aid 0, -alang eng
+VIDEO:  [H264]  1280x720  24bpp  23.976 fps  4495.7 kbps (548.8 kbyte/s)
+==========================================================================
+Opening video decoder: [ffmpeg] FFmpeg's libavcodec codec family
+libavcodec version 57.107.100 (external)
+Selected video codec: [ffh264] vfm: ffmpeg (FFmpeg H.264)
+==========================================================================
+ID_VIDEO_CODEC=ffh264
+Clip info:
+ major_brand: isom
+ID_CLIP_INFO_NAME0=major_brand
+ID_CLIP_INFO_VALUE0=isom
+ minor_version: 1
+ID_CLIP_INFO_NAME1=minor_version
+ID_CLIP_INFO_VALUE1=1
+ compatible_brands: isomavc1
+ID_CLIP_INFO_NAME2=compatible_brands
+ID_CLIP_INFO_VALUE2=isomavc1
+ creation_time: 2017-05-25T02:11:23.000000Z
+ID_CLIP_INFO_NAME3=creation_time
+ID_CLIP_INFO_VALUE3=2017-05-25T02:11:23.000000Z
+ encoder: MkvToMp4 [www.mkvtomp4.ru] version 0.224 (x64)
+ID_CLIP_INFO_NAME4=encoder
+ID_CLIP_INFO_VALUE4=MkvToMp4 [www.mkvtomp4.ru] version 0.224 (x64)
+ID_CLIP_INFO_N=5
+Load subtitles in /local/martyn/TV/
+ID_FILE_SUB_ID=0
+ID_FILE_SUB_FILENAME=/local/martyn/TV/The 100 - 04x13 - Praimfaya.srt
+SUB: Added subtitle file (1): /local/martyn/TV/The 100 - 04x13 - Praimfaya.srt
+ID_FILENAME=/local/martyn/TV/The 100 - 04x13 - Praimfaya.mp4
+ID_DEMUXER=lavfpref
+ID_VIDEO_FORMAT=H264
+ID_VIDEO_BITRATE=4495672
+ID_VIDEO_WIDTH=1280
+ID_VIDEO_HEIGHT=720
+ID_VIDEO_FPS=23.976
+ID_VIDEO_ASPECT=0.0000
+ID_AUDIO_FORMAT=MP4A
+ID_AUDIO_BITRATE=239664
+ID_AUDIO_RATE=48000
+ID_AUDIO_NCH=2
+ID_START_TIME=0.00
+ID_LENGTH=2485.40
+ID_SEEKABLE=1
+ID_CHAPTERS=0
+==========================================================================
+Opening audio decoder: [ffmpeg] FFmpeg/libavcodec audio decoders
+AUDIO: 48000 Hz, 2 ch, floatle, 239.7 kbit/7.80% (ratio: 29958->384000)
+ID_AUDIO_BITRATE=239664
+ID_AUDIO_RATE=48000
+ID_AUDIO_NCH=2
+Selected audio codec: [ffaac] afm: ffmpeg (FFmpeg AAC (MPEG-2/MPEG-4 Audio))
+==========================================================================
+AO: [null] 48000Hz 2ch floatle (4 bytes per sample)
+ID_AUDIO_CODEC=ffaac
+Starting playback...
+
+
+Exiting... (End of file)
+ID_EXIT=EOF

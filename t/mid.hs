@@ -14,7 +14,7 @@ import Test.Tasty  ( TestTree, defaultMain, testGroup )
 --                     local imports                      --
 ------------------------------------------------------------
 
-import Video.MPlayer.T.Identify  as  Identify
+import qualified Video.MPlayer.T.Identify  as  Identify
 
 -------------------------------------------------------------------------------
 

@@ -1,3 +1,6 @@
+{-# LANGUAGE FlexibleContexts  #-}
+{-# LANGUAGE OverloadedStrings #-}
+
 module Video.MPlayer.T.Identify
   ( tests )
 where
@@ -6,16 +9,20 @@ where
 
 import Data.Either    ( Either( Right ) )
 import Data.Function  ( ($) )
-import Data.String    ( String, unlines )
+import Data.String    ( String )
 import System.IO      ( IO )
 
 -- fluffy ------------------------------
 
 import Fluffy.Tasty  ( runTestsP_ )
 
+-- mtl ---------------------------------
+
+import Control.Monad.Except  ( MonadError )
+
 -- parsec ------------------------------
 
-import Text.Parsec.Prim  ( parse )
+import Text.Parsec.Error  ( ParseError )
 
 -- tasty -------------------------------
 
@@ -23,19 +30,22 @@ import Test.Tasty  ( TestTree, defaultMain, testGroup )
 
 -- tasty-hunit -------------------------
 
-import Test.Tasty.HUnit  ( Assertion, (@?=)
-                         , assertBool, assertEqual, assertFailure, testCase )
+import Test.Tasty.HUnit  ( (@?=), testCase )
+
+-- text --------------------------------
+
+import Data.Text  ( Text, unlines )
 
 ------------------------------------------------------------
 --                     local imports                      --
 ------------------------------------------------------------
 
-import Video.MPlayer.Identify  ( Video( Video ), video )
+import Video.MPlayer.Identify  ( Video( Video ), parsecV )
 
 --------------------------------------------------------------------------------
 
 -- | Some test data
-testdata1 :: String
+testdata1 :: Text
 testdata1 = unlines [ "ID_SID_0_LANG=eng"
                     , "ID_VIDEO_FORMAT=H264"
                     , "ID_VIDEO_HEIGHT=574"
@@ -46,11 +56,14 @@ testdata1 = unlines [ "ID_SID_0_LANG=eng"
                     , "ID_VIDEO_WIDTH=700"
                     ]
 
+parseTests :: TestTree
 parseTests =
-  testGroup "parseTests"
-    [ testCase "testdata1" $
-        parse video "testdata1" testdata1 @?= Right (Video 700 574)
-    ]
+  let parsecV' :: (MonadError ParseError η) => String -> Text -> η Video
+      parsecV'  = parsecV
+   in testGroup "parseTests"
+        [ testCase "testdata1" $
+            parsecV' "testdata1" testdata1 @?= Right (Video 700 574)
+        ]
 
 ------------------------------------------------------------
 

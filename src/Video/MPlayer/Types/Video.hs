@@ -5,19 +5,19 @@
 {-# OPTIONS_GHC -Wall #-}
 
 module Video.MPlayer.Types.Video
-  ( Video( Video ), height, parsecV, videoP, width )
+  ( Video( Video ), height, width
+  , parsecV, parsecV', parsecFileV', parsecFileV )
 where
 
 -- base --------------------------------
 
-import Control.Applicative    ( (<*), (<*>), (*>), (<|>), many, some )
+import Control.Applicative    ( (<*), (<*>), (<|>), many, some )
 import Control.Monad          ( (>>), (>>=), return, void )
 import Data.Char              ( Char )
-import Data.Either            ( Either( Left, Right ), either )
+import Data.Either            ( Either( Left, Right ) )
 import Data.Eq                ( Eq )
 import Data.Function          ( (.), ($) )
 import Data.Functor           ( (<$>) )
-import Data.Functor.Identity  ( Identity )
 import Data.Ord               ( Ord )
 import Data.String            ( IsString( fromString ), String )
 import Numeric.Natural        ( Natural )
@@ -33,7 +33,6 @@ import Data.Textual  ( Printable( print ), toString )
 import Fluffy.IO.Error      ( AsIOError )
 import Fluffy.Lens          ( (##) )
 import Fluffy.MonadIO       ( MonadIO, readFile )
-import Fluffy.Parsec        ( Parsecable( parser ) )
 import Fluffy.Parsec.Error  ( AsParseError( _ParseError ), IOParseError )
 
 -- lens --------------------------------
@@ -48,7 +47,7 @@ import Control.Monad.Except  ( MonadError, throwError )
 
 import Text.Parsec.Char   ( alphaNum, char, digit, letter, newline, noneOf )
 import Text.Parsec.Error  ( ParseError )
-import Text.Parsec.Prim   ( Parsec, ParsecT, Stream, parse, unexpected )
+import Text.Parsec.Prim   ( Parsec, ParsecT, Stream, parse )
 
 -- path --------------------------------
 
@@ -62,7 +61,7 @@ import Data.Text  ( Text, pack, unpack )
 --                     local imports                      --
 ------------------------------------------------------------
 
-import Fluffy.Parsec2  ( (<$$>), (<||>), runPermutation )
+import Fluffy.Parsec.Permutation  ( (<$$>), (<||>), runPermutation )
 
 --------------------------------------------------------------------------------
 
@@ -101,7 +100,7 @@ skipLine = void $ many (noneOf "\n") >> newline
 
 -- video :: Parser Video
 videoP :: Parsec String () Video
-videoP = runPermutation skipLine (ident <* char '=') $ Video <$$> ("ID_VIDEO_WIDTH" , nat)
+videoP = runPermutation skipLine newline (ident <* char '=') $ Video <$$> ("ID_VIDEO_WIDTH" , nat)
                                 <||> ("ID_VIDEO_HEIGHT", nat)
 
 parsecV :: (AsParseError ε, MonadError ε η, Printable τ) =>

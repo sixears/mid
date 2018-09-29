@@ -1,7 +1,7 @@
 {-# LANGUAGE FlexibleContexts  #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module Video.MPlayer.T.Identify
+module Video.MPlayer.Types.T.Video
   ( tests )
 where
 
@@ -74,6 +74,6 @@ _tests :: String -> IO ()
 _tests p = runTestsP_ tests p
 
 tests :: TestTree
-tests = testGroup "Video.MPlayer.Identify" [ parseTests ]
+tests = testGroup "Video.MPlayer.Types.Video" [ parseTests ]
 
 -- that's all, folks! ----------------------------------------------------------

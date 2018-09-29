@@ -14,7 +14,7 @@ import Test.Tasty  ( TestTree, defaultMain, testGroup )
 --                     local imports                      --
 ------------------------------------------------------------
 
-import qualified Video.MPlayer.T.Identify  as  Identify
+import qualified Video.MPlayer.Types.T.Video  as  Video
 
 -------------------------------------------------------------------------------
 
@@ -22,6 +22,6 @@ main :: IO ()
 main = defaultMain tests
 
 tests :: TestTree
-tests = testGroup "mid" [ Identify.tests ]
+tests = testGroup "mid" [ Video.tests ]
 
 -- that's all, folks! ----------------------------------------------------------

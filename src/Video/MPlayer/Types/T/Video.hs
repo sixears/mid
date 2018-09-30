@@ -8,13 +8,19 @@ where
 -- base --------------------------------
 
 import Data.Either    ( Either( Right ) )
-import Data.Function  ( ($) )
+import Data.Function  ( (.), ($) )
+import Data.Functor   ( fmap )
+import Data.Maybe     ( Maybe( Just ) )
 import Data.String    ( String )
 import System.IO      ( IO )
 
 -- fluffy ------------------------------
 
-import Fluffy.Tasty  ( runTestsP_ )
+import Fluffy.Tasty  ( assertLeft, runTestsP_ )
+
+-- mono-traversable --------------------
+
+import Data.MonoTraversable  ( lastMay )
 
 -- mtl ---------------------------------
 
@@ -22,7 +28,7 @@ import Control.Monad.Except  ( MonadError )
 
 -- parsec ------------------------------
 
-import Text.Parsec.Error  ( ParseError )
+import Text.Parsec.Error  ( ParseError, errorMessages, messageString )
 
 -- tasty -------------------------------
 
@@ -44,9 +50,41 @@ import Video.MPlayer.Identify  ( Video( Video ), parsecV )
 
 --------------------------------------------------------------------------------
 
--- | Some test data
-testdata1 :: Text
-testdata1 = unlines [ "ID_SID_0_LANG=eng"
+dataSucc :: Text
+dataSucc = unlines [ "ID_SID_0_LANG=eng"
+                   , "ID_VIDEO_FORMAT=H264"
+                   , "ID_VIDEO_HEIGHT=574"
+                   , "ID_START_TIME=0.00"
+                   , "ID_SUBTITLE_ID=0"
+                   , "ID_VIDEO_ID=0"
+                   , "ID_VIDEO_FPS=25.000"
+                   , "ID_VIDEO_WIDTH=700"
+                   ]
+
+dupFPS :: Text
+dupFPS = unlines [ "ID_SID_0_LANG=eng"
+                 , "ID_VIDEO_FORMAT=H264"
+                 , "ID_VIDEO_FPS=25.000"
+                 , "ID_VIDEO_HEIGHT=574"
+                 , "ID_START_TIME=0.00"
+                 , "ID_SUBTITLE_ID=0"
+                 , "ID_VIDEO_ID=0"
+                 , "ID_VIDEO_FPS=25.000"
+                 , "ID_VIDEO_WIDTH=700"
+                 ]
+
+missingHeight :: Text
+missingHeight = unlines [ "ID_SID_0_LANG=eng"
+                        , "ID_VIDEO_FORMAT=H264"
+                        , "ID_START_TIME=0.00"
+                        , "ID_SUBTITLE_ID=0"
+                        , "ID_VIDEO_ID=0"
+                        , "ID_VIDEO_FPS=25.000"
+                        , "ID_VIDEO_WIDTH=700"
+                        ]
+
+dupHeight :: Text
+dupHeight = unlines [ "ID_SID_0_LANG=eng"
                     , "ID_VIDEO_FORMAT=H264"
                     , "ID_VIDEO_HEIGHT=574"
                     , "ID_START_TIME=0.00"
@@ -54,15 +92,26 @@ testdata1 = unlines [ "ID_SID_0_LANG=eng"
                     , "ID_VIDEO_ID=0"
                     , "ID_VIDEO_FPS=25.000"
                     , "ID_VIDEO_WIDTH=700"
+                    , "ID_VIDEO_HEIGHT=574"
                     ]
 
 parseTests :: TestTree
 parseTests =
   let parsecV' :: (MonadError ParseError η) => String -> Text -> η Video
       parsecV'  = parsecV
+      eMsgStrs = fmap messageString . errorMessages
+      testFail msg = assertLeft ( \ e -> Just msg @?= lastMay (eMsgStrs e))
    in testGroup "parseTests"
-        [ testCase "testdata1" $
-            parsecV' "testdata1" testdata1 @?= Right (Video 700 574)
+        [ testCase "success" $
+            parsecV' "dataSucc" dataSucc @?= Right (Video 700 574)
+        , testCase "missing height" $
+            testFail "eof before ID_VIDEO_HEIGHT"
+                     (parsecV' "missingHeight" missingHeight)
+        , testCase "duplicate FPS" $
+            parsecV' "dupFPS" dupFPS @?= Right (Video 700 574)
+        , testCase "duplicate height" $
+            testFail "duplicate ID_VIDEO_HEIGHT"
+                     (parsecV' "dupHeight" dupHeight)
         ]
 
 ------------------------------------------------------------

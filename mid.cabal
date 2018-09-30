@@ -64,8 +64,8 @@ library
   -- other-extensions:
 
   -- Other library packages from which modules are imported.
-  build-depends:       base, containers, data-textual, lens, mtl, parsec
-                     , path, tasty, tasty-hunit, text
+  build-depends:       base, containers, data-textual, lens, mono-traversable
+                     , mtl, parsec, path, tasty, tasty-hunit, text
 
                      , fluffy >= 0.2.5.1, tfmt
 

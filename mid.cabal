@@ -51,9 +51,11 @@ library
   -- Modules exported by the library.
   exposed-modules:     Video.MPlayer.Identify
                        Video.MPlayer.Paths
+                       Video.MPlayer.Types.Identifier
                        Video.MPlayer.Types.Video
                        Video.MPlayer.Types.T.Video
 
+                       Fluffy.Parsec2
                        Fluffy.Parsec.Permutation
 
   -- modules included in this library but not exported.

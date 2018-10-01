@@ -5,7 +5,8 @@
 {-# OPTIONS_GHC -Wall #-}
 
 module Fluffy.Parsec.Permutation
-  ( (<$$>), (<||>), runPermutation )
+  ( Parsecable_( parsec_, parsec_', parsecFile_, parsecFile_', parser_ )
+  ,  (<$$>), (<||>), runPermutation )
 where
 
 -- | A framework parser for permutable strings, where the input is a set of
@@ -29,7 +30,7 @@ where
 import Control.Applicative    ( (<*), (*>), (<|>) )
 import Control.Monad          ( (>>=), fail, return )
 import Data.Either            ( Either( Left, Right ), either )
-import Data.Function          ( ($), const )
+import Data.Function          ( (.), ($), const )
 import Data.Functor           ( (<$>), fmap )
 import Data.Functor.Identity  ( Identity )
 import Data.Maybe             ( Maybe( Just, Nothing ) )
@@ -43,17 +44,35 @@ import qualified  Data.Set       as  Set
 
 -- data-textual ------------------------
 
-import Data.Textual  ( Printable )
+import Data.Textual  ( Printable, toString )
+
+-- mtl ---------------------------------
+
+import Control.Monad.Except  ( MonadError, throwError )
 
 -- parsec ------------------------------
 
 import Text.Parsec.Combinator  ( eof )
-import Text.Parsec.Prim        ( Parsec, ParsecT, unexpected )
+import Text.Parsec.Error       ( ParseError )
+import Text.Parsec.Prim        ( Parsec, ParsecT, parse, unexpected )
 import Text.Parsec.String      ( Parser )
+
+-- path --------------------------------
+
+import Path  ( File, Path, toFilePath )
 
 -- tfmt --------------------------------
 
 import Text.Fmt  ( fmt )
+
+------------------------------------------------------------
+--                     local imports                      --
+------------------------------------------------------------
+
+import Fluffy.IO.Error      ( AsIOError )
+import Fluffy.Lens          ( (##) )
+import Fluffy.MonadIO       ( MonadIO, readFile )
+import Fluffy.Parsec.Error  ( AsParseError( _ParseError ), IOParseError )
 
 --------------------------------------------------------------------------------
 
@@ -127,5 +146,27 @@ runPermutation skippy identTerm parseIdent p@(Permutation seen e)
            -- parse the RHS to get a continuation Permutation
            -- and run it to parse rest of parameters
            (prhs <* identTerm) >>= runPermutation skippy identTerm parseIdent
+
+------------------------------------------------------------
+
+class Parsecable_ χ where
+  parser_ :: Parsec String () χ
+
+  parsec_ :: (AsParseError ε, MonadError ε μ, Printable σ, Printable τ) =>
+             σ -> τ -> μ χ
+  parsec_ sourceNme t = case parse parser_ (toString sourceNme) (toString t) of
+                          Left  e -> throwError (_ParseError ## e)
+                          Right s -> return s
+
+  parsec_' :: (MonadError ParseError μ, Printable σ, Printable τ) =>
+              σ -> τ -> μ χ
+  parsec_' = parsec_
+
+  parsecFile_ :: (MonadIO μ, AsIOError ε, AsParseError ε, MonadError ε μ) =>
+                 Path β File -> μ χ
+  parsecFile_ fn = readFile fn >>= parsec_ (toFilePath fn) . toString
+
+  parsecFile_' :: (MonadIO μ, MonadError IOParseError μ) => Path β File -> μ χ
+  parsecFile_' = parsecFile_
 
 -- that's all, folks! ----------------------------------------------------------

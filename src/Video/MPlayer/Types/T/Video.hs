@@ -16,7 +16,8 @@ import System.IO      ( IO )
 
 -- fluffy ------------------------------
 
-import Fluffy.Tasty  ( assertLeft, runTestsP_ )
+import Fluffy.Parsec.Permutation  ( parsec_' )
+import Fluffy.Tasty               ( assertLeft, runTestsP_ )
 
 -- mono-traversable --------------------
 
@@ -46,7 +47,7 @@ import Data.Text  ( Text, unlines )
 --                     local imports                      --
 ------------------------------------------------------------
 
-import Video.MPlayer.Identify  ( Video( Video ), parsecV )
+import Video.MPlayer.Identify  ( Video( Video ) )
 
 --------------------------------------------------------------------------------
 
@@ -98,7 +99,7 @@ dupHeight = unlines [ "ID_SID_0_LANG=eng"
 parseTests :: TestTree
 parseTests =
   let parsecV' :: (MonadError ParseError η) => String -> Text -> η Video
-      parsecV'  = parsecV
+      parsecV'  = parsec_'
       eMsgStrs = fmap messageString . errorMessages
       testFail msg = assertLeft ( \ e -> Just msg @?= lastMay (eMsgStrs e))
    in testGroup "parseTests"

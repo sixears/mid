@@ -6,15 +6,14 @@
 -- and https://www.cs.ox.ac.uk/jeremy.gibbons/wg21/meeting56/loeh-paper.pdf
 
 module Video.MPlayer.Identify
-  ( Video( Video ), height, parsecV, width )
+  ( Video( Video ), height, width )
 where
 
 ------------------------------------------------------------
 --                     local imports                      --
 ------------------------------------------------------------
 
-import Video.MPlayer.Types.Video  ( Video( Video )
-                                  , height, parsecV, width )
+import Video.MPlayer.Types.Video  ( Video( Video ), height, width )
 
 --------------------------------------------------------------------------------
 

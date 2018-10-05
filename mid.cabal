@@ -50,6 +50,7 @@ library
   ghc-options:         -W -Wall -fhelpful-errors
   -- Modules exported by the library.
   exposed-modules:     Video.MPlayer.Identify
+                       Video.MPlayer.Identify.Error
                        Video.MPlayer.Paths
                        Video.MPlayer.Types.Identifier
                        Video.MPlayer.Types.Video
@@ -67,7 +68,7 @@ library
 
   -- Other library packages from which modules are imported.
   build-depends:       base, containers, data-textual, lens, mono-traversable
-                     , mtl, parsec, path, tasty, tasty-hunit, text
+                     , mtl, parsec, path, proclib, tasty, tasty-hunit, text
 
                      , fluffy >= 0.2.5.1, tfmt
 
@@ -87,7 +88,7 @@ executable mid
   main-is:             mid.hs
   hs-source-dirs:      bin
   build-depends:       base, fluffy, lens, mtl, optparse-applicative, parsec
-                     , proclib, text
+                     , path, proclib, text, tfmt, unix
 
                      , mid
   default-extensions:  NoImplicitPrelude

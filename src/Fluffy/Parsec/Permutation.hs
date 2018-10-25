@@ -142,7 +142,7 @@ runPermutation skippy identTerm parseIdent p@(Permutation seen e)
                     then unexpected ([fmt|duplicate %T|] k)
                     else skippy *> runPermutation skippy identTerm parseIdent p
          -- yes, it is
-         Just prhs -> do
+         Just prhs ->
            -- parse the RHS to get a continuation Permutation
            -- and run it to parse rest of parameters
            (prhs <* identTerm) >>= runPermutation skippy identTerm parseIdent

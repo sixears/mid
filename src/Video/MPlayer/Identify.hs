@@ -1,5 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
-
 {-# OPTIONS_GHC -Wall #-}
 
 -- see https://stackoverflow.com/questions/52438196/how-to-parse-a-series-of-lines-with-only-a-few-interesting-ones-with-parsec-in

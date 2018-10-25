@@ -6,35 +6,54 @@
 {-# LANGUAGE QuasiQuotes           #-}
 {-# LANGUAGE ScopedTypeVariables   #-}
 {-# LANGUAGE TemplateHaskell       #-}
+{-# LANGUAGE TupleSections         #-}
 {-# LANGUAGE TypeSynonymInstances  #-}
 
-import Prelude  ( Integer, (/), floor, fromIntegral, mod, quot )
+{- TODO --------------------------------
+
+- mv Fluffy additions to fluffy
+- Use Printable Exceptions rather than show
+- except with -E, print error immediately rather than some results
+- add -s to read names from stdin
+- tidy and refactor
+
+-} -------------------------------------
+
+
+import Prelude  ( Double, Float, (+), (/), fromIntegral, mod, quot )
+
 -- base --------------------------------
 
 import Control.Applicative     ( (<*>), some )
-import Control.Monad           ( Monad, (>>=), forM_, join, return )
+import Control.Monad           ( Monad, (>>=), (>>), forM, return, sequence )
 import Control.Monad.IO.Class  ( MonadIO, liftIO )
 import Data.Bifunctor          ( first, second )
 import Data.Bool               ( Bool, (&&) )
 import Data.Char               ( Char )
 import Data.Either             ( Either( Left, Right ), either )
 import Data.Eq                 ( Eq, (==) )
+import Data.Foldable           ( foldl1 )
 import Data.Function           ( (.), ($), flip, id )
 import Data.Functor            ( (<$>), fmap )
 import Data.List               ( filter, sort )
-import Data.Maybe              ( Maybe( Just, Nothing ) )
+import Data.List.NonEmpty      ( nonEmpty, unzip )
+import Data.Maybe              ( Maybe( Just, Nothing ), catMaybes )
 import Data.Monoid             ( (<>) )
 import Data.Ord                ( (<) )
-import Data.Tuple              ( fst )
+import Data.Tuple              ( fst, snd )
 import Numeric.Natural         ( Natural )
+import System.Exit             ( ExitCode( ExitFailure ) )
 import System.IO               ( IO, print )
 import Text.Show               ( Show( show ) )
 
 -- fluffy ------------------------------
 
+import Fluffy.Duration            ( Duration, hours )
+import Fluffy.ByteSize2           ( ByteSize, gibibytes )
 import Fluffy.IO.Error            ( AsIOError, userE )
 import Fluffy.Lens                ( (##) )
 import Fluffy.MonadError          ( splitMError )
+import Fluffy.MonadIO             ( die, warn )
 import Fluffy.MonadIO.File        ( stat )
 import Fluffy.Nat                 ( One, Two )
 import Fluffy.Options             ( optParser )
@@ -44,6 +63,7 @@ import Fluffy.Path                ( AbsDir, AbsFile, AsFilePath( toFPath ), File
                                   , MyPath( resolve ), RelFile
                                   , getCwd_, parseFile'
                                   )
+import Fluffy.ToRational          ( fromRational )
 
 -- lens --------------------------------
 
@@ -89,7 +109,6 @@ import Text.Fmt  ( fmt )
 -- unix --------------------------------
 
 import System.Posix.Files  ( fileSize )
-import System.Posix.Types  ( COff, FileOffset )
 
 ------------------------------------------------------------
 --                     local imports                      --
@@ -98,14 +117,12 @@ import System.Posix.Types  ( COff, FileOffset )
 import qualified  Video.MPlayer.Paths  as  Paths
 
 import Video.MPlayer.Identify.Error  ( ExecCreatePathIOParseError )
-import Video.MPlayer.Types.Video     ( fps, height, lengthHours, lengthSecsNat
-                                     , width )
+import Video.MPlayer.Types.Video     ( duration, fps, height, width )
 
 --------------------------------------------------------------------------------
 
-type FileSize = COff
-
--- XX USE DURATION TYPE (pre-existing?)
+-- XX USE DURATION-Secs TYPE (pre-existing?); no, use Duration in Nanos as Word64
+-- newtype Duration = Duration Word64 -- time duration in nanoseconds
 
 -- XX replace ExecCreatePathIOParseError with (As*Error)+
 midentify :: MonadError ExecCreatePathIOParseError η =>
@@ -114,18 +131,26 @@ midentify fn = let args = [ "-vo", "null", "-ao", "null", "-frames", "0"
                           , "-identify", pack (toFPath fn) ]
                    fstT :: ([Text],[Text]) -> [Text]
                    fstT = fst
-                in fstT <$> (mkProc_ $ CmdSpec Paths.mplayer args)
+                in fstT <$> mkProc_ (CmdSpec Paths.mplayer args)
 
 handleE :: (Show ε) => Either ε () -> IO ()
 handleE = either print return
 
+-- whether to show all the values output by mplayer -identify rather than the
+-- summary parsing
 data ShowAll = ShowAll | NoShowAll
   deriving Eq
 
-data Options = Options { _fns      :: [Either AbsFile RelFile]
-                       , _dryRunL  :: DryRunLevel  Two
-                       , _verboseL :: VerboseLevel One
-                       , _showAll  :: ShowAll
+-- | whether to stop on the first bad file seen, or continue and summarize the
+--   good data
+data IgnoreBadFiles = IgnoreBadFiles | NoIgnoreBadFiles
+  deriving Eq
+
+data Options = Options { _fns            :: [Either AbsFile RelFile]
+                       , _dryRunL        :: DryRunLevel  Two
+                       , _verboseL       :: VerboseLevel One
+                       , _showAll        :: ShowAll
+                       , _ignoreBadFiles :: IgnoreBadFiles
                        }
 $( makeLenses ''Options )
 
@@ -138,11 +163,14 @@ instance HasDryRunLevel Two Options where
 parseOpts :: Parser Options
 parseOpts = let argMeta = metavar "FILE" <> help "file to query"
              in Options <$> some (argument fileReader argMeta)
-                      <*> dryRun2P
-                      <*> verboseP
-                      <*> flag NoShowAll ShowAll
-                             (short 'a' <> long "all"
-                                        <> help "show all the info")
+                        <*> dryRun2P
+                        <*> verboseP
+                        <*> flag NoShowAll ShowAll
+                                 (short 'a' <> long "all"
+                                            <> help "show all the info")
+                        <*> flag NoIgnoreBadFiles IgnoreBadFiles
+                                 (short 'E' <> long "ignore-error-files"
+                                            <> help "continue past bad files")
 
 splitOne :: Char -> Text -> Maybe (Text,Text)
 splitOne c t = second tail . flip splitAt t <$> findIndex (== c) t
@@ -162,36 +190,36 @@ fmtHMS s =
   else [fmt|         %02ds|] s
 
 fsize :: (MonadError ε μ, AsIOError ε, MonadIO μ) =>
-         Path β File -> μ (Maybe FileOffset)
-fsize = fmap (fmap fileSize) . stat
+         Path β File -> μ (Maybe ByteSize)
+fsize = fmap (fmap (fromIntegral . fileSize)) . stat
 
 fileReader :: ReadM (Either AbsFile RelFile)
 fileReader = eitherReader (first show . parseFile' . pack)
 
 parsecMPI :: (MonadIO μ, AsParseError ε, MonadError ε μ) =>
-               Text -> FileSize -> Text -> μ ()
+               Text -> ByteSize -> Text -> μ (ByteSize, Duration)
 parsecMPI fn sz idtxt =
-  case {- parsecMPI -} parsec_ fn idtxt of
--- XX Fail/Exit here
--- XX add no-exit option
-    Left  e -> do liftIO $ do putStrLn "FATAL: mplayer failed"
-                              putStrLn (pack $ show e)
-                  throwError $ _ParseError ## e
--- XX switch to using GiB every time, with a Fmt handler
+  case parsec_ fn idtxt of
+    Left  e -> throwError $ _ParseError ## e
 
-    Right v -> liftIO . putStrLn $ [fmt|%t  %4dx%4d  %3.3ffps  %Y  (%Y/h)  %t|]
-                                    (fmtHMS $ v ^. lengthSecsNat)
-                                    (v ^. width)
-                                    (v ^. height)
-                                    (v ^. fps)
-                                    sz
-                                    ((floor $ fromIntegral sz / v ^. lengthHours) :: Integer)
-                                    fn
+    Right v -> do let gib        = fromRational (gibibytes sz)
+                      gibPerHour :: Double
+                      gibPerHour = ((gib / fromRational(v ^. duration ^. hours)))
+                  liftIO . putStrLn $ [fmt|%9T  %4dx%4d  %3.3ffps  %3.2fGiB  (%3.2fGiB/h)  %t|]
+                                      (v ^. duration)
+                                      (v ^. width)
+                                      (v ^. height)
+                                      (v ^. fps)
+                                      gib
+                                      gibPerHour
+                                      fn
+                  return (sz, v ^. duration)
 
+type AbsRelFile = Either AbsFile RelFile
 
 doFile :: (MonadIO η, MonadError ExecCreatePathIOParseError η) =>
-          Options -> AbsDir -> (Either AbsFile RelFile)
-       -> ProcIO ExecCreatePathIOParseError η ()
+          Options -> AbsDir -> AbsRelFile
+       -> ProcIO ExecCreatePathIOParseError η (Maybe (ByteSize, Duration))
 doFile opts cwd f = do
   let fn = pack $ either toFPath toFPath f
       af = either id (resolve cwd) f
@@ -201,16 +229,38 @@ doFile opts cwd f = do
           \case Nothing -> throwError (userE nonSuch)
                 Just z  -> return z
   let idtxt = unlines . sort $ filter filterIDs out
-  if ( opts ^. showAll == ShowAll )
-  then lift . liftIO $ putStrLn idtxt
---  else lift $ parsecMPI' fn sz idtxt
-  else lift $ parsecMPI fn sz idtxt
+  if opts ^. showAll == ShowAll
+  then lift . liftIO $ putStrLn idtxt >> return Nothing
+  else lift $ Just <$> parsecMPI fn sz idtxt
 
 main :: IO ()
 main = do
   opts <- optParser "summarize video characteristics" parseOpts
   cwd :: AbsDir <- getCwd_
-  forM_ (opts ^. fns) $ \ f -> join . fmap handleE . splitMError . doProcIO opts $ doFile opts cwd f
+
+  z :: [(AbsRelFile, Either ExecCreatePathIOParseError (Maybe (ByteSize, Duration)))]
+    <- sequence $ (\fn -> ((fn,) <$>) . splitMError . doProcIO opts $ doFile opts cwd fn) <$> (opts ^. fns)
+--    <- sequence $ (splitMError . doProcIO opts . doFile opts cwd) <$> (opts ^. fns)
+-- XXX insert option here to warn but ignore errors
+-- XXX also add -s to read names from stdin
+  z'' <- if opts ^. ignoreBadFiles == IgnoreBadFiles
+--         then forM (snd <$> z)  (either (\e -> warn (pack (show e)) >> return Nothing) return)
+         then forM z ( \ (fn ,ei) -> either ( \ _ -> warn ("ERROR file: '" <> pack (either toFPath toFPath fn) <> "'") >> return Nothing) return ei) -- (either (\e -> warn (pack (show e)) >> return Nothing) return)
+         else either (die (ExitFailure 255) . pack . show) return (sequence $ snd <$> z)
+  z' <- case nonEmpty (catMaybes z'') of
+          Nothing -> return Nothing
+          Just xs -> let (sizes, durations) = unzip xs
+                      in return $ Just (foldl1 (+) sizes, foldl1 (+) durations)
+
+  case z' of
+    Nothing                         -> return ()
+    Just (sizeTotal, durationTotal) ->
+      let gbperh :: Float
+          gbperh = fromRational (gibibytes sizeTotal) /
+                   fromRational (durationTotal ^. hours)
+       in putStrLn $ [fmt|Total: %T  %T  (%3.2fGiB/h)|] sizeTotal durationTotal gbperh
+
+  return ()
 
 -- that's all, folks! ----------------------------
 

@@ -5,17 +5,21 @@ module Video.MPlayer.Types.T.Video
   ( tests )
 where
 
+import Prelude  ( Int )
+
 -- base --------------------------------
 
 import Data.Either    ( Either( Right ) )
 import Data.Function  ( (.), ($) )
 import Data.Functor   ( fmap )
 import Data.Maybe     ( Maybe( Just ) )
+import Data.Ratio     ( Rational, (%) )
 import Data.String    ( String )
 import System.IO      ( IO )
 
 -- fluffy ------------------------------
 
+import Fluffy.Duration            ( fromS )
 import Fluffy.Parsec.Permutation  ( parsec_' )
 import Fluffy.Tasty               ( assertLeft, runTestsP_ )
 
@@ -110,14 +114,18 @@ parseTests =
       eMsgStrs = fmap messageString . errorMessages
       testFail msg = assertLeft ( \ e -> Just msg @?= lastMay (eMsgStrs e))
       fn = "/local/martyn/The Infernal Serpent.mkv"
+      ratty :: Rational
+      ratty = 66338 % 25
    in testGroup "parseTests"
         [ testCase "success" $
-            parsecV' "dataSucc" dataSucc @?= Right (video 700 574 2653.52 25 fn)
+                parsecV' "dataSucc" dataSucc
+            @?= Right (video 700 574 (fromS $ ratty) 25 fn)
         , testCase "missing height" $
             testFail "eof before ID_FILENAME,ID_VIDEO_HEIGHT"
                      (parsecV' "missingHeight" missingHeight)
         , testCase "duplicate FPS" $
-            parsecV' "dupFormat" dupFormat @?= Right (video 700 574 6282 25 fn)
+                parsecV' "dupFormat" dupFormat
+            @?= Right (video 700 574 (fromS (6282 :: Int)) 25 fn)
         , testCase "duplicate height" $
             testFail "duplicate ID_VIDEO_HEIGHT"
                      (parsecV' "dupHeight" dupHeight)
@@ -129,7 +137,7 @@ _test :: IO ()
 _test = defaultMain tests
 
 _tests :: String -> IO ()
-_tests p = runTestsP_ tests p
+_tests = runTestsP_ tests
 
 tests :: TestTree
 tests = testGroup "Video.MPlayer.Types.Video" [ parseTests ]

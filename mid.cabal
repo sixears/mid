@@ -56,8 +56,11 @@ library
                        Video.MPlayer.Types.Video
                        Video.MPlayer.Types.T.Video
 
+                       Fluffy.ByteSize2
+                       Fluffy.Duration
                        Fluffy.Parsec2
                        Fluffy.Parsec.Permutation
+                       Fluffy.ToRational
 
   -- modules included in this library but not exported.
   other-modules:
@@ -67,8 +70,9 @@ library
   -- other-extensions:
 
   -- Other library packages from which modules are imported.
-  build-depends:       base, containers, data-textual, lens, mono-traversable
-                     , mtl, parsec, path, proclib, tasty, tasty-hunit, text
+  build-depends:       base, containers, data-textual, formatting, lens
+                     , mono-traversable, mtl, parsec, path, proclib, tasty
+                     , tasty-hunit, text, text-printer
 
                      , fluffy >= 0.2.5.1, tfmt
 

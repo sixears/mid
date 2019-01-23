@@ -5,7 +5,7 @@
 {-# OPTIONS_GHC -Wall #-}
 
 module Fluffy.Parsec.Permutation
-  ( Parsecable_( parsec_, parsec_', parsecFile_, parsecFile_', parser_ )
+  ( ParsecableP( parsecP, parsecP', parsecFileP, parsecFileP', parserP )
   ,  (<$$>), (<||>), runPermutation )
 where
 
@@ -149,24 +149,24 @@ runPermutation skippy identTerm parseIdent p@(Permutation seen e)
 
 ------------------------------------------------------------
 
-class Parsecable_ χ where
-  parser_ :: Parsec String () χ
+class ParsecableP χ where
+  parserP :: Parsec String () χ
 
-  parsec_ :: (AsParseError ε, MonadError ε μ, Printable σ, Printable τ) =>
+  parsecP :: (AsParseError ε, MonadError ε μ, Printable σ, Printable τ) =>
              σ -> τ -> μ χ
-  parsec_ sourceNme t = case parse parser_ (toString sourceNme) (toString t) of
+  parsecP sourceNme t = case parse parserP (toString sourceNme) (toString t) of
                           Left  e -> throwError (_ParseError ## e)
                           Right s -> return s
 
-  parsec_' :: (MonadError ParseError μ, Printable σ, Printable τ) =>
+  parsecP' :: (MonadError ParseError μ, Printable σ, Printable τ) =>
               σ -> τ -> μ χ
-  parsec_' = parsec_
+  parsecP' = parsecP
 
-  parsecFile_ :: (MonadIO μ, AsIOError ε, AsParseError ε, MonadError ε μ) =>
+  parsecFileP :: (MonadIO μ, AsIOError ε, AsParseError ε, MonadError ε μ) =>
                  Path β File -> μ χ
-  parsecFile_ fn = readFile fn >>= parsec_ (toFilePath fn) . toString
+  parsecFileP fn = readFile fn >>= parsecP (toFilePath fn) . toString
 
-  parsecFile_' :: (MonadIO μ, MonadError IOParseError μ) => Path β File -> μ χ
-  parsecFile_' = parsecFile_
+  parsecFileP' :: (MonadIO μ, MonadError IOParseError μ) => Path β File -> μ χ
+  parsecFileP' = parsecFileP
 
 -- that's all, folks! ----------------------------------------------------------

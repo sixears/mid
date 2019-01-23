@@ -56,8 +56,13 @@ library
                        Video.MPlayer.Types.Video
                        Video.MPlayer.Types.T.Video
 
+                       Fluffy.Applicative
                        Fluffy.ByteSize2
                        Fluffy.Duration
+                       Fluffy.Functor2
+                       Fluffy.IO.Error2
+                       Fluffy.Lens2
+                       Fluffy.Monad
                        Fluffy.Parsec2
                        Fluffy.Parsec.Permutation
                        Fluffy.ToRational
@@ -70,9 +75,9 @@ library
   -- other-extensions:
 
   -- Other library packages from which modules are imported.
-  build-depends:       base, containers, data-textual, formatting, lens
-                     , mono-traversable, mtl, parsec, path, proclib, tasty
-                     , tasty-hunit, text, text-printer
+  build-depends:       base, base-unicode-symbols, data-textual, containers
+                     , formatting, lens, mono-traversable, mtl, parsec, path
+                     , proclib, tasty, tasty-hunit, text, text-printer
 
                      , fluffy >= 0.2.5.1, tfmt
 
@@ -91,8 +96,9 @@ executable mid
   -- add ?RTS -xt -hy to produce a usage graph
   main-is:             mid.hs
   hs-source-dirs:      bin
-  build-depends:       base, fluffy, lens, mtl, optparse-applicative, parsec
-                     , path, proclib, text, tfmt, unix
+  build-depends:       base, base-unicode-symbols, fluffy, lens, mtl
+                     , optparse-applicative, parsec, path, proclib, text, tfmt
+                     , unix
 
                      , mid
   default-extensions:  NoImplicitPrelude

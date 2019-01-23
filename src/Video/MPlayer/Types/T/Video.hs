@@ -20,7 +20,7 @@ import System.IO      ( IO )
 -- fluffy ------------------------------
 
 import Fluffy.Duration            ( fromS )
-import Fluffy.Parsec.Permutation  ( parsec_' )
+import Fluffy.Parsec.Permutation  ( parsecP' )
 import Fluffy.Tasty               ( assertLeft, runTestsP_ )
 
 -- mono-traversable --------------------
@@ -51,7 +51,7 @@ import Data.Text  ( Text, unlines )
 --                     local imports                      --
 ------------------------------------------------------------
 
-import Video.MPlayer.Identify  ( Video, video )
+import Video.MPlayer.Types.Video  ( Video, video )
 
 --------------------------------------------------------------------------------
 
@@ -110,7 +110,7 @@ dupHeight = unlines [ "ID_SID_0_LANG=eng"
 parseTests :: TestTree
 parseTests =
   let parsecV' :: (MonadError ParseError η) => String -> Text -> η Video
-      parsecV'  = parsec_'
+      parsecV'  = parsecP'
       eMsgStrs = fmap messageString . errorMessages
       testFail msg = assertLeft ( \ e -> Just msg @?= lastMay (eMsgStrs e))
       fn = "/local/martyn/The Infernal Serpent.mkv"

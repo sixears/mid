@@ -71,9 +71,9 @@ h :: Lens' Duration Rational
 h = hours
 
 hms :: (Integral α, Num β, Num γ) => Duration -> (α, β, γ)
-hms (Duration s') = let (h,m_) = floor s' `quotRem` 3600
+hms (Duration s') = let (h',m_) = floor s' `quotRem` 3600
                         (m,s_)  = m_ `quotRem` 60
-                     in (h,fromIntegral m,fromIntegral s_)
+                     in (h',fromIntegral m,fromIntegral s_)
 
 hms' :: Duration -> (Integer, Word8, Word8)
 hms' = hms

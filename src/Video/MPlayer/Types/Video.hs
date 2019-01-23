@@ -30,7 +30,7 @@ import Text.Show              ( Show )
 import Fluffy.Duration            ( Duration, fromS )
 import Fluffy.Parsec2             ( line )
 import Fluffy.Parsec              ( Parsecable( parser ) )
-import Fluffy.Parsec.Permutation  ( Parsecable_( parser_ )
+import Fluffy.Parsec.Permutation  ( ParsecableP( parserP )
                                   , (<$$>),(<||>), runPermutation )
 
 -- lens --------------------------------
@@ -90,8 +90,8 @@ parseRational =
                              ((x,_) : (y,_) :_)   -> parserFail $ ambigMsg s x y
                              []                   -> parserFail $ failedMsg s
 
-instance Parsecable_ Video where
-  parser_ = let runP = runPermutation (void line) newline (ident <* char '=')
+instance ParsecableP Video where
+  parserP = let runP = runPermutation (void line) newline (ident <* char '=')
              in runP $ Video <$$> ("ID_VIDEO_WIDTH" , parser)
                              <||> ("ID_VIDEO_HEIGHT", parser)
                              <||> ("ID_LENGTH",       fromS <$> parseRational)

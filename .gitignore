@@ -25,3 +25,4 @@ src/Video/MPlayer/Paths.hs
 cabal.nix
 src/HaddockTest.hs
 default.nix.orig
+default.nix.bak

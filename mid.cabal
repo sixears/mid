@@ -97,8 +97,8 @@ executable mid
   main-is:             mid.hs
   hs-source-dirs:      bin
   build-depends:       base, base-unicode-symbols, fluffy, lens, mtl
-                     , optparse-applicative, parsec, path, proclib, text, tfmt
-                     , unix
+                     , logging-effect, optparse-applicative, parsec, path
+                     , proclib, text, tfmt, unix
 
                      , mid
   default-extensions:  NoImplicitPrelude

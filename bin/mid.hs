@@ -1,5 +1,6 @@
 {-# OPTIONS_GHC -Wall #-}
 
+{-# LANGUAGE ConstraintKinds       #-}
 {-# LANGUAGE FlexibleContexts      #-}
 {-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE LambdaCase            #-}
@@ -25,27 +26,29 @@
 -} -------------------------------------
 
 
-import Prelude  ( Double, Float, (+), (/), fromIntegral )
+import Prelude  ( Bounded, Double, Enum, Float, Int, (+), (-), (/)
+                , fromEnum, fromIntegral, maxBound, minBound, toEnum )
 
 -- base --------------------------------
 
-import Control.Applicative     ( many )
-import Control.Monad           ( forM, return, sequence )
+import Control.Applicative     ( many, pure )
+import Control.Monad           ( forM, forM_, return, sequence, when )
 import Control.Monad.IO.Class  ( MonadIO, liftIO )
 import Data.Bifunctor          ( first )
 import Data.Bool               ( Bool, (&&) )
 import Data.Either             ( Either, either )
 import Data.Eq                 ( Eq, (==) )
-import Data.Foldable           ( foldl1 )
-import Data.Function           ( ($), id )
+import Data.Foldable           ( foldl1, length )
+import Data.Function           ( ($), flip, id )
 import Data.Functor            ( fmap )
 import Data.List               ( filter, sort )
 import Data.List.NonEmpty      ( nonEmpty, unzip )
 import Data.Maybe              ( Maybe( Just, Nothing ), catMaybes )
 import Data.Monoid             ( (<>) )
+import Data.Ord                ( (<), (<=), (>) )
 import Data.Tuple              ( snd, uncurry )
 import System.Exit             ( ExitCode( ExitFailure ) )
-import System.IO               ( IO )
+import System.IO               ( IO, print )
 import System.IO.Error         ( doesNotExistErrorType, mkIOError )
 import Text.Show               ( Show( show ) )
 
@@ -55,17 +58,17 @@ import Data.Function.Unicode  ( (∘) )
 
 -- fluffy ------------------------------
 
-import Fluffy.Applicative         ( (⊵) )
+import Fluffy.Applicative         ( (⩥) )
 import Fluffy.Duration            ( Duration, hours )
 import Fluffy.ByteSize2           ( ByteSize, gibibytes )
 import Fluffy.Functor2            ( (⊳) )
 import Fluffy.IO.Error            ( AsIOError( _IOErr ) )
 import Fluffy.Lens2               ( (⊣), (⋕) )
-import Fluffy.Monad               ( (≫), (⩾) )
+import Fluffy.Monad               ( (⪼), (≫) )
 import Fluffy.MonadError          ( fromMaybe, splitMError )
 import Fluffy.MonadIO             ( die, eitherIOThrow, say, warn )
 import Fluffy.MonadIO.File        ( stat )
-import Fluffy.Nat                 ( One, Two )
+import Fluffy.Nat                 ( AtMost( Nil ), One, Two )
 import Fluffy.Options             ( optParser )
 import Fluffy.Parsec.Error        ( AsParseError )
 import Fluffy.Parsec.Permutation  ( parsecP )
@@ -80,6 +83,11 @@ import Fluffy.ToRational          ( fromRational )
 import Control.Lens.Getter  ( view )
 import Control.Lens.TH      ( makeLenses )
 
+-- logging-effect ----------------------
+
+import Control.Monad.Log  ( MonadLog, Severity, WithSeverity
+                          , discardSeverity, logDebug, msgSeverity, runLoggingT )
+
 -- mtl ---------------------------------
 
 import Control.Monad.Except  ( MonadError, throwError )
@@ -87,8 +95,8 @@ import Control.Monad.Trans   ( lift )
 
 -- optparse-applicative ----------------
 
-import Options.Applicative  ( Parser, ReadM, argument, eitherReader, flag, help
-                            , long, metavar, short )
+import Options.Applicative  ( Parser, ReadM, argument, eitherReader, flag, flag'
+                            , help, long, metavar, short )
 
 -- path --------------------------------
 
@@ -101,7 +109,7 @@ import ProcLib.CommonOpt.DryRun       ( DryRunLevel
                                       , dryRun2P
                                       )
 import ProcLib.CommonOpt.Verbose      ( HasVerboseLevel( verboseLevel )
-                                      , VerboseLevel, verboseP )
+                                      , VerboseLevel( VerboseLevel ) )
 import ProcLib.Error.CreateProcError  ( AsCreateProcError )
 import ProcLib.Error.CreateProcIOError  ( ExecCreatePathIOParseError )
 import ProcLib.Error.ExecError        ( AsExecError )
@@ -112,7 +120,7 @@ import ProcLib.Types.ProcIO           ( ProcIO )
 
 import Data.Text     ( Text
                      , isInfixOf, isPrefixOf, lines, pack, unlines, unpack )
-import Data.Text.IO  ( getContents )
+import Data.Text.IO  ( getContents, putStrLn )
 
 -- tfmt --------------------------------
 
@@ -149,35 +157,46 @@ type AbsRelFile = Either AbsFile RelFile
 
 data Options = Options { _fns            ∷ [AbsRelFile]
                        , _dryRunL        ∷ DryRunLevel  Two
-                       , _verboseL       ∷ VerboseLevel One
+                       , _verbosity      ∷ Int -- VerboseLevel One
+                       , _quietude       ∷ Int -- VerboseLevel One
                        , _showAll        ∷ ShowAll
                        , _ignoreBadFiles ∷ IgnoreBadFiles
                        , _filesOnStdin   ∷ FilesOnStdin
+                       , __verbosestub   :: VerboseLevel One
                        }
 $( makeLenses ''Options )
 
 instance HasVerboseLevel One Options where
-  verboseLevel = verboseL
+  verboseLevel = _verbosestub
 
 instance HasDryRunLevel Two Options where
   dryRunLevel = dryRunL
+
+toBEnum ∷ (Enum α, Bounded α) => Int -> α
+toBEnum a = let b = maxBound
+                r = toEnum a
+                _ c = b < a
+             in r
 
 parseOpts ∷ Parser Options
 parseOpts = let argMeta = metavar "FILE" <> help "file to query"
                 filesOnStdinHelp = "read files from stdin one per line"
              in Options ⊳ many (argument fileReader argMeta)
-                        ⊵ dryRun2P
-                        ⊵ verboseP
-                        ⊵ flag NoShowAll ShowAll
+                        ⩥ dryRun2P
+                        ⩥ length ⊳ many (flag' () (short 'v'))
+                        ⩥ length ⊳ many (flag' () (short 'q'))
+                        ⩥ flag NoShowAll ShowAll
                                  (short 'a' <> long "all"
                                             <> help "show all the info")
-                        ⊵ flag NoIgnoreBadFiles IgnoreBadFiles
+                        ⩥ flag NoIgnoreBadFiles IgnoreBadFiles
                                  (short 'E' <> long "ignore-error-files"
                                             <> help "continue past bad files")
 
-                        ⊵ flag NoFilesOnStdin FilesOnStdin
+                        ⩥ flag NoFilesOnStdin FilesOnStdin
                                  (short 's' <> long "files-on-stdin"
                                             <> help filesOnStdinHelp)
+
+                        ⩥ pure (VerboseLevel Nil)
 
 filterIDs ∷ Text → Bool
 filterIDs t = "ID_" `isPrefixOf` t && "=" `isInfixOf` t
@@ -219,13 +238,13 @@ noSuchFDErr = noSuchErr "file or directory"
 {- | throw error for missing file as indicated by `Nothing` -}
 maybeNoSuchFileE ∷ (AsIOError ε, MonadError ε η) ⇒
                    Path β File → η (Maybe α) → η α
-maybeNoSuchFileE fn g = g ⩾ fromMaybe (noSuchFileErr fn)
+maybeNoSuchFileE fn g = g ≫ fromMaybe (noSuchFileErr fn)
 
 {- | Call a fn that returns a `Maybe` with `Nothing` for a missing file; throw a
      no such file IOError into IOError -}
 maybeNoSuchFileE' ∷ (AsIOError ε, MonadError ε η) ⇒
                    Path β File → (Path β File → η (Maybe α)) → η α
-maybeNoSuchFileE' fn g = g fn ⩾ fromMaybe (noSuchFileErr fn)
+maybeNoSuchFileE' fn g = g fn ≫ fromMaybe (noSuchFileErr fn)
 
 statF ∷ (MonadIO μ, AsIOError ε, MonadError ε μ) ⇒
         (FileStatus → α) → Path β τ -> μ (Maybe α)
@@ -233,7 +252,7 @@ statF g fn = fmap g ⊳ stat fn
 
 statF' ∷ (MonadIO μ, AsIOError ε, MonadError ε μ) ⇒
         (FileStatus → α) -> Path β File → μ α
-statF' g fn = statF g fn ⩾ fromMaybe (noSuchFileErr fn)
+statF' g fn = statF g fn ≫ fromMaybe (noSuchFileErr fn)
 
 {- | The size of file; Nothing if file doesn't exist -}
 fsize ∷ (MonadError ε μ, AsIOError ε, MonadIO μ) ⇒
@@ -254,7 +273,7 @@ fmtDuration v fn sz =
 parsecMPI ∷ (MonadIO μ, AsParseError ε, MonadError ε μ) ⇒
             Text → ByteSize → Text → μ (ByteSize, Duration)
 parsecMPI fn sz idtxt =
-  parsecP fn idtxt ⩾ \ v → say (fmtDuration v fn sz) ≫ return (sz, v ⊣ duration)
+  parsecP fn idtxt ≫ \ v → say (fmtDuration v fn sz) ⪼ return (sz, v ⊣ duration)
 
 ----------------------------------------
 
@@ -266,20 +285,25 @@ resolveFile cwd f = (either id (resolve cwd) f, pack $ either toFPath toFPath f)
 
 ----------------------------------------
 
+type TextLog = MonadLog (WithSeverity Text)
+
 {- | Given a file, try to read its vital statistics with midentify
  -}
-doFile ∷ (MonadIO μ,
+doFile ∷ (MonadIO μ, TextLog μ,
           AsCreateProcError ε, AsExecError ε, AsParseError ε, AsIOError ε) ⇒
          Options → AbsFile → Text → ProcIO ε μ (Maybe (ByteSize, Duration))
 doFile opts af fn = do
   out ← midentify af
-  sz ← lift $ maybeNoSuchFileE' af fsize
+  sz  ← lift $ maybeNoSuchFileE' af fsize
   let idtxt = unlines ∘ sort $ filter filterIDs out
+
+  lift $ forM_ (lines idtxt) logDebug
+
   if opts ⊣ showAll == ShowAll
-  then lift $ say idtxt ≫ return Nothing
+  then lift $ say idtxt ⪼ return Nothing
   else lift $ Just ⊳ parsecMPI fn sz idtxt
 
-doFiles' ∷ MonadIO μ ⇒
+doFiles' ∷ (MonadIO μ, TextLog μ) ⇒
            Options → AbsDir → [AbsRelFile]
          → μ [(AbsRelFile,
              Either ExecCreatePathIOParseError (Maybe (ByteSize, Duration)))]
@@ -287,20 +311,20 @@ doFiles' opts cwd filenames =
   let f fn = fmap (fn,) ∘ splitMError ∘ doProcIO opts $ uncurry (doFile opts) (resolveFile cwd fn)
    in sequence $ f ⊳ filenames
 
-doFiles ∷ MonadIO μ ⇒
+doFiles ∷ (MonadIO μ, TextLog μ) ⇒
           Options → AbsDir → [AbsRelFile] → μ [Maybe (ByteSize, Duration)]
 
 doFiles opts cwd filenames = do
   z ← doFiles' opts cwd filenames
   if opts ⊣ ignoreBadFiles == IgnoreBadFiles
-  then forM z ( \ (fn ,ei) → either ( \ _ → warn ("ERROR file: '" <> pack (either toFPath toFPath fn) <> "'") ≫ return Nothing) return ei)
+  then forM z ( \ (fn ,ei) → either ( \ _ → warn ("ERROR file: '" <> pack (either toFPath toFPath fn) <> "'") ⪼ return Nothing) return ei)
   else either (die (ExitFailure 255) ∘ pack ∘ show) return (sequence $ snd ⊳ z)
 
 -- | if the options say so, read stdin as one file-per-line, and attempt to
 --   interpret each as a file; on error, throws to IO
 readStdinFiles ∷ MonadIO μ ⇒ Options → μ [AbsRelFile]
 readStdinFiles (view filesOnStdin → FilesOnStdin) = 
-  liftIO $ getContents ⩾ sequence ∘ fmap (eitherIOThrow ∘ parseFile') ∘ lines
+  liftIO $ getContents ≫ sequence ∘ fmap (eitherIOThrow ∘ parseFile') ∘ lines
 readStdinFiles _ = return []
 
 
@@ -309,11 +333,20 @@ main = do
   opts ← optParser "summarize video characteristics" parseOpts
   cwd ∷ AbsDir ← getCwd_
 
+  let verbiage = 5 + opts ⊣ verbosity - opts ⊣ quietude
+  logLevel ← if verbiage > fromEnum (maxBound :: Severity)
+             then warn "too many verbose flags! (max 2)" ⪼ return maxBound
+             else if verbiage < fromEnum (minBound :: Severity)
+                  then warn "too many quiet flags! (max 5)" ⪼ return minBound
+                  else return $ toEnum verbiage
+                  
+  print verbiage
+
   stdinFiles ← readStdinFiles opts
 
   let filenames = opts ⊣ fns <> stdinFiles
 
-  z'' ← doFiles opts cwd filenames
+  z'' ← flip runLoggingT ( \ m → when (msgSeverity m <= logLevel) (putStrLn (discardSeverity m)) ) $ doFiles opts cwd filenames
 
   z' ← case nonEmpty (catMaybes z'') of
           Nothing → return Nothing
